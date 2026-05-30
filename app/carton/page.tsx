@@ -650,11 +650,12 @@ export default function CartonPage() {
                 </div>
 
                 <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-800">
-                  <div className="grid grid-cols-[40px_1fr_120px_180px] gap-0 bg-zinc-950/40 px-4 py-2 text-[11px] font-semibold text-zinc-400">
+                  {/* En mobile reflow: mostramos # + Partido y movemos Fecha + 1/X/2 debajo para evitar overflow horizontal */}
+                  <div className="grid grid-cols-[32px_1fr] gap-0 bg-zinc-950/40 px-4 py-2 text-[11px] font-semibold text-zinc-400 sm:grid-cols-[40px_1fr_120px_180px]">
                     <div>#</div>
                     <div>Partido</div>
-                    <div>Fecha</div>
-                    <div className="text-right">1 / X / 2</div>
+                    <div className="hidden sm:block">Fecha</div>
+                    <div className="hidden text-right sm:block">1 / X / 2</div>
                   </div>
                   {matchesState.loading ? (
                     <div className="px-4 py-4 text-[12px] text-zinc-400">
@@ -668,7 +669,7 @@ export default function CartonPage() {
                     matchesState.rows.map((m) => (
                       <div
                         key={m.n}
-                        className="grid grid-cols-[40px_1fr_120px_180px] items-center gap-0 border-t border-zinc-800 px-4 py-3 text-[12px]"
+                        className="grid grid-cols-[32px_1fr] items-start gap-0 border-t border-zinc-800 px-4 py-3 text-[12px] sm:grid-cols-[40px_1fr_120px_180px] sm:items-center"
                       >
                         <div className="text-zinc-500">{m.n}</div>
                         <div className="min-w-0">
@@ -711,9 +712,26 @@ export default function CartonPage() {
                               <span className="truncate">{m.away}</span>
                             </span>
                           </div>
+
+                          {/* Mobile: mostramos fecha + botones abajo */}
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 sm:hidden">
+                            <span className="min-w-0 truncate">{m.date}</span>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {(["1", "X", "2"] as const).map((k) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  className="h-8 w-9 rounded-xl border border-zinc-800 bg-zinc-950/40 text-[12px] font-semibold text-zinc-200"
+                                  title="Demo"
+                                >
+                                  {k}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-zinc-500">{m.date}</div>
-                        <div className="flex justify-end gap-2">
+                        <div className="hidden text-zinc-500 sm:block">{m.date}</div>
+                        <div className="hidden justify-end gap-2 sm:flex">
                           {["1", "X", "2"].map((k) => (
                             <button
                               key={k}
@@ -741,7 +759,7 @@ export default function CartonPage() {
                     ).map((m) => (
                       <div
                         key={m.n}
-                        className="grid grid-cols-[40px_1fr_120px_180px] items-center gap-0 border-t border-zinc-800 px-4 py-3 text-[12px]"
+                        className="grid grid-cols-[32px_1fr] items-start gap-0 border-t border-zinc-800 px-4 py-3 text-[12px] sm:grid-cols-[40px_1fr_120px_180px] sm:items-center"
                       >
                         <div className="text-zinc-500">{m.n}</div>
                         <div className="min-w-0">
@@ -784,10 +802,27 @@ export default function CartonPage() {
                               <span className="truncate">{m.away}</span>
                             </span>
                           </div>
+
+                          {/* Mobile: fecha + botones abajo */}
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-500 sm:hidden">
+                            <span className="min-w-0 truncate">{m.date}</span>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {(["1", "X", "2"] as const).map((k) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  className="h-8 w-9 rounded-xl border border-zinc-800 bg-zinc-950/40 text-[12px] font-semibold text-zinc-200"
+                                  title="Demo"
+                                >
+                                  {k}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-zinc-500">{m.date}</div>
-                        <div className="flex justify-end gap-2">
-                          {["1", "X", "2"].map((k) => (
+                        <div className="hidden text-zinc-500 sm:block">{m.date}</div>
+                        <div className="hidden justify-end gap-2 sm:flex">
+                          {(["1", "X", "2"] as const).map((k) => (
                             <button
                               key={k}
                               type="button"
@@ -808,10 +843,10 @@ export default function CartonPage() {
                   el inicio del primer partido.
                 </div>
 
-                <div className="mt-6 flex items-center justify-between rounded-3xl border border-zinc-800 bg-zinc-950/30 p-4">
+                <div className="mt-6 flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-950/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-[12px] text-zinc-400">Total a pagar</div>
-                    <div className="mt-1 text-2xl font-extrabold text-lime-300 tabular-nums">
+                    <div className="mt-1 text-xl font-extrabold text-lime-300 tabular-nums sm:text-2xl">
                       ${formatMoneyARS(price)},00
                     </div>
                   </div>
@@ -819,7 +854,7 @@ export default function CartonPage() {
                     type="button"
                     disabled={loading || price <= 0}
                     onClick={buy}
-                    className="inline-flex items-center justify-center gap-3 rounded-2xl bg-lime-500/80 px-6 py-3 text-[13px] font-extrabold text-zinc-950 hover:bg-lime-500 disabled:opacity-60"
+                    className="inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-lime-500/80 px-6 py-3 text-[13px] font-extrabold text-zinc-950 hover:bg-lime-500 disabled:opacity-60 sm:w-auto"
                   >
                     🛒 Comprar cartón
                   </button>
@@ -898,20 +933,12 @@ export default function CartonPage() {
 
             <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40 p-5">
               <div className="text-[13px] font-extrabold text-zinc-200">PREMIOS</div>
-              <div className="mt-2 text-[12px] text-zinc-500">Premios según cantidad de aciertos</div>
+              <div className="mt-2 text-[12px] text-zinc-500">Premio para el que acierta todos los partidos</div>
               <div className="mt-4 space-y-3 text-[12px]">
-                {[
-                  { a: "15 aciertos", p: "Premio mayor" },
-                  { a: "14 aciertos", p: "Gran premio" },
-                  { a: "13 aciertos", p: "Buen premio" },
-                  { a: "12 aciertos", p: "Premio menor" },
-                  { a: "Menos de 12", p: "Participás por premios sorpresa" },
-                ].map((r) => (
-                  <div key={r.a} className="flex items-center justify-between">
-                    <div className="text-zinc-300">{r.a}</div>
-                    <div className="font-semibold text-lime-200">{r.p}</div>
-                  </div>
-                ))}
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-zinc-300">Todos los partidos</div>
+                  <div className="break-words font-semibold text-lime-200 sm:text-right">Premio mayor</div>
+                </div>
               </div>
             </Card>
 

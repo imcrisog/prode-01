@@ -476,7 +476,7 @@ function CartonPicksInner() {
                     return (
                       <div
                         key={m.index}
-                        className="grid grid-cols-[42px_1fr_160px_44px] items-center gap-3 border-t border-zinc-800 px-4 py-3 text-[12px] first:border-t-0"
+                        className="grid grid-cols-[32px_1fr] items-start gap-3 border-t border-zinc-800 px-4 py-3 text-[12px] first:border-t-0 sm:grid-cols-[42px_1fr_160px_44px] sm:items-center"
                       >
                         <div className="text-zinc-500">{m.index}</div>
 
@@ -516,7 +516,32 @@ function CartonPicksInner() {
                           </div>
                         </div>
 
-                        <div className="flex justify-end gap-2">
+                        {/* Mobile: botones debajo del partido, para que no se corte */}
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-3 sm:hidden">
+                          <div className="flex justify-end gap-2">
+                            {(["1", "X", "2"] as const).map((p) => (
+                              <PickButton
+                                key={p}
+                                value={p}
+                                selected={selected === p}
+                                onClick={() => {
+                                  if (closed) return;
+                                  setPicks((prev) => ({ ...prev, [m.index]: p }));
+                                }}
+                              />
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/40 text-zinc-400"
+                            title="Estadísticas (demo)"
+                          >
+                            ▥
+                          </button>
+                        </div>
+
+                        {/* Desktop */}
+                        <div className="hidden justify-end gap-2 sm:flex">
                           {(["1", "X", "2"] as const).map((p) => (
                             <PickButton
                               key={p}
@@ -532,7 +557,7 @@ function CartonPicksInner() {
 
                         <button
                           type="button"
-                          className="grid h-9 w-9 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900"
+                          className="hidden h-9 w-9 place-items-center rounded-xl border border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:bg-zinc-900 sm:grid"
                           title="Estadísticas (demo)"
                         >
                           ▥
@@ -661,20 +686,12 @@ function CartonPicksInner() {
 
             <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40 p-5">
               <div className="text-[13px] font-extrabold text-zinc-200">PREMIOS</div>
-              <div className="mt-2 text-[12px] text-zinc-500">Premios según cantidad de aciertos</div>
+              <div className="mt-2 text-[12px] text-zinc-500">Premio para el que acierta todos los partidos</div>
               <div className="mt-4 space-y-3 text-[12px]">
-                {[
-                  { a: "15 aciertos", p: "Premio mayor" },
-                  { a: "14 aciertos", p: "Gran premio" },
-                  { a: "13 aciertos", p: "Buen premio" },
-                  { a: "12 aciertos", p: "Premio menor" },
-                  { a: "Menos de 12", p: "Participás por premios sorpresa" },
-                ].map((r) => (
-                  <div key={r.a} className="flex items-center justify-between">
-                    <div className="text-zinc-300">{r.a}</div>
-                    <div className="font-semibold text-lime-200">{r.p}</div>
-                  </div>
-                ))}
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-zinc-300">Todos los partidos</div>
+                  <div className="break-words font-semibold text-lime-200 sm:text-right">Premio mayor</div>
+                </div>
               </div>
             </Card>
 
