@@ -320,6 +320,7 @@ export default function CartonPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           cartonId: selectedCarton.id,
+          cartonSnapshot: selectedCarton,
         }),
       });
       if (!res.ok) throw new Error(await res.text());

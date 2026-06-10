@@ -25,6 +25,30 @@ function getCookie(req: Request, name: string) {
 
 const BodySchema = z.object({
   cartonId: z.number().int().positive(),
+  cartonSnapshot: z
+    .object({
+      id: z.number().int().positive(),
+      title: z.string().nullable().optional(),
+      number_date: z.number().int().optional(),
+      type: z.string().optional(),
+      price_ars: z.number().int().nonnegative(),
+      purchase_deadline: z.string().nullable().optional(),
+      matches: z
+        .array(
+          z
+            .object({
+              local_name: z.string().optional(),
+              visit_name: z.string().optional(),
+              category: z.string().optional(),
+              timetoplay: z.string().nullable().optional(),
+              local_logo_url: z.string().optional(),
+              visit_logo_url: z.string().optional(),
+            })
+            .passthrough(),
+        )
+        .optional(),
+    })
+    .optional(),
 });
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -54,45 +78,69 @@ export async function POST(req: Request) {
     const body = BodySchema.parse(await req.json());
 
     // Buscar el cartón en el backend y tomar precio/matches desde ahí.
-    // Importante: NO hacemos self-fetch al mismo origin (en devtunnels puede fallar con "fetch failed").
-    const backendRes = await fetch(`${BACKEND_BASE_URL}/api/prode/cartones`, {
-      cache: "no-store",
-      redirect: "follow",
-      headers: DEFAULT_HEADERS,
-    });
-    const backendText = await backendRes.text();
-    if (!backendRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Error consultando backend /api/prode/cartones",
-          status: backendRes.status,
-          body: backendText?.slice(0, 500) ?? "",
-        },
-        { status: 502 },
-      );
-    }
-
-    let backendJson: { data?: unknown } = {};
+    // IMPORTANTE: en algunos entornos (ej Vercel) Cloudflare puede bloquear requests server-to-server (403 challenge).
+    // Por eso soportamos un fallback con `cartonSnapshot` (enviado por el cliente) para que el flujo no se rompa.
+    let cartonRec: Record<string, unknown> | null = null;
     try {
-      backendJson = JSON.parse(backendText) as { data?: unknown };
-    } catch {
-      return NextResponse.json(
-        {
-          ok: false,
-          message: "Respuesta inválida (no JSON) desde backend /api/prode/cartones",
-          body: backendText?.slice(0, 500) ?? "",
-        },
-        { status: 502 },
-      );
+      const backendRes = await fetch(`${BACKEND_BASE_URL}/api/prode/cartones`, {
+        cache: "no-store",
+        redirect: "follow",
+        headers: DEFAULT_HEADERS,
+      });
+      const backendText = await backendRes.text();
+
+      if (backendRes.ok) {
+        const backendJson = JSON.parse(backendText) as { data?: unknown };
+        const cartonesRaw = Array.isArray(backendJson.data) ? backendJson.data : [];
+        cartonRec =
+          cartonesRaw
+            .map(asRecord)
+            .find((c) => c && Number(c.id) === body.cartonId) ?? null;
+      } else {
+        // Si viene snapshot, intentamos seguir. Si no, devolvemos el error del backend.
+        if (!body.cartonSnapshot) {
+          return NextResponse.json(
+            {
+              ok: false,
+              message: "Error consultando backend /api/prode/cartones",
+              status: backendRes.status,
+              body: backendText?.slice(0, 500) ?? "",
+            },
+            { status: 502 },
+          );
+        }
+        console.warn("[api/carton/buy] backend blocked; using cartonSnapshot fallback", {
+          status: backendRes.status,
+          cartonId: body.cartonId,
+        });
+      }
+    } catch (e) {
+      if (!body.cartonSnapshot) {
+        const msg = e instanceof Error ? e.message : "fetch failed";
+        return NextResponse.json(
+          { ok: false, message: "Error consultando backend /api/prode/cartones", status: 0, body: msg },
+          { status: 502 },
+        );
+      }
+      console.warn("[api/carton/buy] backend fetch failed; using cartonSnapshot fallback", {
+        cartonId: body.cartonId,
+      });
     }
 
-    const cartonesRaw = Array.isArray(backendJson.data) ? backendJson.data : [];
-    const cartonRec =
-      cartonesRaw
-        .map(asRecord)
-        .find((c) => c && Number(c.id) === body.cartonId) ?? null;
-    if (!cartonRec) return new NextResponse("Cartón no encontrado", { status: 404 });
+    if (!cartonRec) {
+      if (!body.cartonSnapshot || body.cartonSnapshot.id !== body.cartonId) {
+        return new NextResponse("Cartón no encontrado", { status: 404 });
+      }
+      cartonRec = {
+        id: body.cartonSnapshot.id,
+        title: body.cartonSnapshot.title,
+        number_date: body.cartonSnapshot.number_date,
+        type: body.cartonSnapshot.type,
+        price_ars: body.cartonSnapshot.price_ars,
+        purchase_deadline: body.cartonSnapshot.purchase_deadline,
+        matches: body.cartonSnapshot.matches ?? [],
+      };
+    }
 
     // Validación en tiempo real: si ya cerró, no se puede comprar.
     // Esto es lo importante para seguridad (aunque el front lo oculte).
