@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       items: [
         {
           id: `deposit-${body.depositId}`,
-          title: "Carga de saldo (demo)",
+          title: "Carga de saldo",
           quantity: 1,
           currency_id: "ARS",
           unit_price: body.amount,
