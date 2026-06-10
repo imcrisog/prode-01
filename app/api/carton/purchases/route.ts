@@ -66,6 +66,8 @@ async function fetchBackendMatches(cartonId: number) {
   return Array.isArray(json.data) ? json.data : [];
 }
 
+// (helper reservado para futuro)
+
 export async function GET(req: Request) {
   try {
     if (!process.env.MONGODB_URI) {
@@ -108,10 +110,18 @@ export async function GET(req: Request) {
         let empates = 0;
         let fallos = 0;
         let pendientes = 0;
+        let backendFailed = false;
 
         if (typeof p.cartonId === "number") {
           try {
             const backendMatches = await fetchBackendMatches(p.cartonId);
+
+            // Si el backend quedó bloqueado (Cloudflare) devolvimos [] y no podemos afirmar nada.
+            // Marcamos failure para que el front NO muestre FINALIZADO/PERDEDOR incorrecto.
+            if (backendMatches.length === 0) {
+              backendFailed = true;
+            }
+
             for (const m of backendMatches) {
               const matchId = Number(m.index ?? -1) + 1; // backend index 0-based
               const result = normalizeBackendResult(m.result);
@@ -131,6 +141,7 @@ export async function GET(req: Request) {
             }
           } catch {
             // si falla el backend, devolvemos stats básicos
+            backendFailed = true;
           }
         }
 
@@ -138,7 +149,10 @@ export async function GET(req: Request) {
         const picksCount = picks.length;
 
         const isExpired = p.purchaseDeadline ? new Date(p.purchaseDeadline).getTime() <= Date.now() : false;
-        const status = pendientes > 0 && !isExpired ? "EN_JUEGO" : "FINALIZADO";
+
+        // Si no pudimos consultar backend, NO podemos determinar status/outcome.
+        // Mostramos EN_JUEGO y outcome null para no inducir a error.
+        const status = backendFailed ? "EN_JUEGO" : pendientes > 0 && !isExpired ? "EN_JUEGO" : "FINALIZADO";
 
         // Regla de "ganador": 80% o más de aciertos sobre la cantidad de partidos del cartón.
         // - Con 15 partidos: 12 (como lo teníamos antes)
@@ -158,6 +172,7 @@ export async function GET(req: Request) {
           price: p.price,
           createdAt: p.createdAt,
           purchaseDeadline: p.purchaseDeadline ?? null,
+          picks: picks,
           stats: {
             matchesCount,
             picksCount,
@@ -167,6 +182,7 @@ export async function GET(req: Request) {
             pendientes,
             status,
             outcome,
+            backendFailed,
           },
         };
       }),

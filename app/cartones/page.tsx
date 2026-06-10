@@ -15,6 +15,7 @@ import {
   UserIcon,
 } from "../components/icons";
 import { useSessionUser } from "../lib/useSessionUser";
+import { backendUrl } from "../lib/backend";
 
 function formatMoneyARS(n: number) {
   return n.toLocaleString("es-AR", { minimumFractionDigits: 0 });
@@ -51,10 +52,27 @@ type PurchaseRow = {
     pendientes: number;
     status: "EN_JUEGO" | "FINALIZADO";
     outcome: "GANADOR" | "PERDEDOR" | null;
+    backendFailed?: boolean;
   };
+  picks?: { matchId: number; pick: "1" | "X" | "2" }[];
 };
 
+type BackendCartonMatch = {
+  index: number;
+  has_result?: boolean;
+  result?: "local" | "draw" | "visit" | null;
+};
+
+function resultToPick(r: BackendCartonMatch["result"]): "1" | "X" | "2" | null {
+  if (r === "local") return "1";
+  if (r === "draw") return "X";
+  if (r === "visit") return "2";
+  return null;
+}
+
 function statusBadge(status: PurchaseRow["stats"]["status"], outcome: PurchaseRow["stats"]["outcome"]) {
+  // Si backend falló, evitamos mostrar ganaste/perdiste.
+  // (Esto pasa en prod cuando Cloudflare bloquea el fetch server-to-server.)
   if (status === "EN_JUEGO") {
     return (
       <span className="rounded-full bg-lime-500/15 px-3 py-1 text-[10px] font-extrabold text-lime-200 ring-1 ring-lime-500/25">
@@ -114,6 +132,92 @@ export default function MisCartonesPage() {
       cancelled = true;
     };
   }, []);
+
+  // En prod, Cloudflare puede bloquear el fetch server-to-server desde Vercel.
+  // Entonces /api/carton/purchases marca backendFailed y no puede calcular outcome.
+  // Acá recalculamos client-side consultando el backend directo (CORS: *).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const needsFix = rows.filter((r) => r.cartonId != null && r.stats.backendFailed);
+        if (needsFix.length === 0) return;
+
+        const updates = await Promise.all(
+          needsFix.map(async (r) => {
+            const cartonId = r.cartonId!;
+            const res = await fetch(backendUrl(`/api/prodes/cartones/matchs?carton_id=${encodeURIComponent(String(cartonId))}`), {
+              cache: "no-store",
+            });
+            const json = (await res.json()) as { data?: BackendCartonMatch[] };
+            const data = Array.isArray(json.data) ? json.data : [];
+
+            const pickMap = new Map<number, "1" | "X" | "2">();
+            for (const pk of r.picks ?? []) pickMap.set(pk.matchId, pk.pick);
+
+            let aciertos = 0;
+            let empates = 0;
+            let fallos = 0;
+            let pendientes = 0;
+            for (const m of data) {
+              const matchId = Number(m.index) + 1;
+              const hasResult = Boolean(m.has_result) || m.result != null;
+              if (!hasResult) {
+                pendientes++;
+                continue;
+              }
+              const resultPick = resultToPick(m.result ?? null);
+              const userPick = pickMap.get(matchId) ?? null;
+              if (resultPick && userPick && resultPick === userPick) {
+                if (resultPick === "X") empates++;
+                else aciertos++;
+              } else {
+                fallos++;
+              }
+            }
+
+            const matchesCount = r.stats.matchesCount || data.length;
+            const baseCount = matchesCount > 0 ? matchesCount : aciertos + empates + fallos + pendientes;
+            const requiredToWin = Math.max(1, Math.ceil(baseCount * 0.8));
+            const totalCorrect = aciertos + empates;
+
+            const isExpired = r.purchaseDeadline ? new Date(r.purchaseDeadline).getTime() <= Date.now() : false;
+            const status: PurchaseRow["stats"]["status"] = pendientes > 0 && !isExpired ? "EN_JUEGO" : "FINALIZADO";
+            const outcome: PurchaseRow["stats"]["outcome"] =
+              status === "FINALIZADO" ? (totalCorrect >= requiredToWin ? "GANADOR" : "PERDEDOR") : null;
+
+            return {
+              purchaseId: r.purchaseId,
+              stats: {
+                ...r.stats,
+                aciertos,
+                empates,
+                fallos,
+                pendientes,
+                status,
+                outcome,
+                backendFailed: false,
+              },
+            };
+          }),
+        );
+
+        if (cancelled) return;
+        setRows((prev) =>
+          prev.map((r) => {
+            const u = updates.find((x) => x.purchaseId === r.purchaseId);
+            return u ? { ...r, stats: u.stats } : r;
+          }),
+        );
+      } catch {
+        // si falla el backend, dejamos lo que vino del server
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   const filtered = useMemo(() => {
     if (filter === "ALL") return rows;
