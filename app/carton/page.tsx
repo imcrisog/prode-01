@@ -16,6 +16,7 @@ import {
 } from "../components/icons";
 import { RequireAuth } from "../components/RequireAuth";
 import { useSessionUser } from "../lib/useSessionUser";
+import { backendUrl } from "../lib/backend";
 
 function formatMoneyARS(n: number) {
   return n.toLocaleString("es-AR", { minimumFractionDigits: 0 });
@@ -208,7 +209,7 @@ export default function CartonPage() {
         // Importante: este listado tiene que venir de /api/prodes/cartones/matchs (como pediste)
         // Filtramos por carton_id para obtener los partidos del cartón.
         const res = await fetch(
-          `/api/prodes/cartones/matchs?carton_id=${encodeURIComponent(String(selectedCarton.id))}`,
+          backendUrl(`/api/prodes/cartones/matchs?carton_id=${encodeURIComponent(String(selectedCarton.id))}`),
           { cache: "no-store" },
         );
         const data = (await res.json()) as { ok?: boolean; message?: string; data?: BackendMatch[] };
@@ -287,7 +288,7 @@ export default function CartonPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/prode/cartones", { cache: "no-store" });
+        const res = await fetch(backendUrl("/api/prode/cartones"), { cache: "no-store" });
         const data = (await res.json()) as { ok?: boolean; message?: string; data?: BackendCarton[] };
         if (cancelled) return;
         if (!res.ok || data.ok === false) {

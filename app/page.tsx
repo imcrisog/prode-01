@@ -22,6 +22,7 @@ import {
 } from "./components/icons";
 import { settleExpiredMatches } from "./lib/localdb";
 import { useSessionUser } from "./lib/useSessionUser";
+import { backendUrl } from "./lib/backend";
 
 type BackendCarton = {
   id?: number;
@@ -200,7 +201,7 @@ export default function HomePage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/prode/cartones", { cache: "no-store" });
+        const res = await fetch(backendUrl("/api/prode/cartones"), { cache: "no-store" });
         const json = (await res.json()) as { ok?: boolean; message?: string; data?: BackendCarton[] };
         if (cancelled) return;
         if (!res.ok || json.ok === false) {
@@ -250,10 +251,12 @@ export default function HomePage() {
       }
       try {
         setMatchesState({ loading: true, error: null, data: [] });
-        // Importante: partidos destacados deben venir de /api/prodes/cartones/matchs
-        // Filtramos por number_date y evitamos cerrados.
+        // Importante: en prod evitamos el proxy /api/* porque Cloudflare puede bloquear requests server-side.
+        // Pegamos directo al backend (CORS permite *).
         const res = await fetch(
-          `/api/prodes/cartones/matchs?number_date=${encodeURIComponent(String(featuredNumberDate))}&is_closed=false`,
+          backendUrl(
+            `/api/prodes/cartones/matchs?number_date=${encodeURIComponent(String(featuredNumberDate))}&is_closed=false`,
+          ),
           { cache: "no-store" },
         );
         const json = (await res.json()) as { ok?: boolean; message?: string; data?: BackendMatch[] };
