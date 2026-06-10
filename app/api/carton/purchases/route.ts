@@ -96,13 +96,18 @@ export async function GET(req: Request) {
 
     const enriched = await Promise.all(
       purchases.map(async (p) => {
-        const picks = Array.isArray(p.picks) ? p.picks : [];
+        const picksRaw = Array.isArray(p.picks) ? p.picks : [];
+        const picks = picksRaw
+          .map((pk) => {
+            const matchId = Number(pk.matchId);
+            const pick = normalizePick(pk.pick);
+            if (!Number.isFinite(matchId) || !pick) return null;
+            return { matchId, pick } as const;
+          })
+          .filter(Boolean) as { matchId: number; pick: "1" | "X" | "2" }[];
+
         const pickMap = new Map<number, "1" | "X" | "2">();
-        for (const pk of picks) {
-          const n = Number(pk.matchId);
-          const v = normalizePick(pk.pick);
-          if (Number.isFinite(n) && v) pickMap.set(n, v);
-        }
+        for (const pk of picks) pickMap.set(pk.matchId, pk.pick);
 
         // Aciertos = partidos acertados cuyo resultado NO fue empate (1 o 2)
         // Empates = pronóstico X acertado (resultado draw)
@@ -172,7 +177,7 @@ export async function GET(req: Request) {
           price: p.price,
           createdAt: p.createdAt,
           purchaseDeadline: p.purchaseDeadline ?? null,
-          picks: picks,
+          picks,
           stats: {
             matchesCount,
             picksCount,
