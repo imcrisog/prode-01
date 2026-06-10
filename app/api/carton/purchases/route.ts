@@ -43,12 +43,21 @@ type BackendCartonMatch = {
 };
 
 async function fetchBackendMatches(cartonId: number) {
-  const res = await fetch(`${BACKEND_BASE_URL}/api/prodes/cartones/matchs?carton_id=${encodeURIComponent(String(cartonId))}`,
+  const res = await fetch(
+    `${BACKEND_BASE_URL}/api/prodes/cartones/matchs?carton_id=${encodeURIComponent(String(cartonId))}`,
     { cache: "no-store", redirect: "follow", headers: DEFAULT_HEADERS },
   );
 
   const text = await res.text();
   if (!res.ok) {
+    // Cloudflare challenge en server-to-server (Vercel) suele devolver HTML "Just a moment".
+    // En ese caso no tiramos error: devolvemos [] y dejamos que la UI muestre stats básicos.
+    if (res.status === 403 && text.toLowerCase().includes("just a moment")) {
+      console.warn("[api/carton/purchases] Cloudflare blocked backend matches; returning empty", {
+        cartonId,
+      });
+      return [];
+    }
     throw new Error(
       `Error backend /api/prodes/cartones/matchs (${res.status}): ${text?.slice(0, 200) ?? ""}`,
     );
