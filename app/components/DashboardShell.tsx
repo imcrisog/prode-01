@@ -145,8 +145,9 @@ export function DashboardShell({
           <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[280px_1fr_360px] lg:gap-6 lg:p-6">
             {/* Left sidebar */}
             <aside className="hidden lg:block lg:h-[calc(100dvh-170px)]">
-              <div className="h-full rounded-[32px] border border-zinc-800/80 bg-gradient-to-b from-zinc-900/35 to-zinc-950/35">
-                <div className="p-3">
+              <div className="h-full overflow-hidden rounded-[32px] border border-zinc-800/80 bg-gradient-to-b from-zinc-900/35 to-zinc-950/35">
+                {/* Sidebar scroll: evita recortes en pantallas bajas */}
+                <div className="h-full overflow-auto p-3 pb-6">
                   <nav className="space-y-1">
                     {navItems.map((it) => (
                       <a
@@ -178,9 +179,8 @@ export function DashboardShell({
                       </a>
                     ))}
                   </nav>
+                  <div className="mt-3 border-t border-zinc-800/80 pt-3">{left}</div>
                 </div>
-
-                <div className="border-t border-zinc-800/80 p-3">{left}</div>
               </div>
             </aside>
 
@@ -188,7 +188,8 @@ export function DashboardShell({
             <main className="min-w-0 space-y-4">{center}</main>
 
             {/* Right rail */}
-            <aside className="space-y-4 lg:h-[calc(100dvh-170px)] lg:overflow-auto lg:pb-2">
+            {/* Nota: evitamos scroll interno para que no se vea “feíto” en pantallas bajas (doble scrollbar). */}
+            <aside className="space-y-4 lg:pb-6">
               {right}
             </aside>
           </div>

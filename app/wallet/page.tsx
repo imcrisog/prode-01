@@ -29,12 +29,19 @@ function formatMoneyARS(n: number) {
 export default function WalletPage() {
   const { user, refresh } = useSessionUser();
 
+  // Accesibilidad práctica (adultos mayores): focus visible + targets grandes.
+  const focusRing =
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950";
+
   const userId = user?.id ?? "";
   const userEmail = user?.email ?? "";
 
   const [amount, setAmount] = useState("1000");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [inPlayAmount, setInPlayAmount] = useState<number>(0);
+  const [inPlayLoaded, setInPlayLoaded] = useState(false);
 
   const numericAmount = useMemo(() => {
     const n = Number(amount);
@@ -101,6 +108,42 @@ export default function WalletPage() {
     };
   }, [mpConfigured, refresh, user]);
 
+  // “En juego”: suma de compras de cartones que siguen EN_JUEGO.
+  // Esto no es el balance (que ya se debita al comprar), sino el monto comprometido.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setInPlayLoaded(false);
+        const res = await fetch("/api/carton/purchases?limit=100", { cache: "no-store" });
+        if (!res.ok) throw new Error(await res.text());
+        const json = (await res.json()) as {
+          ok?: boolean;
+          message?: string;
+          data?: { price?: number; stats?: { status?: "EN_JUEGO" | "FINALIZADO" } }[];
+        };
+        if (cancelled) return;
+        if (json.ok === false) throw new Error(json.message ?? "No se pudieron cargar tus cartones");
+        const rows = Array.isArray(json.data) ? json.data : [];
+        const sum = rows.reduce((acc, r) => {
+          if (r?.stats?.status !== "EN_JUEGO") return acc;
+          const p = Number(r.price ?? 0);
+          return Number.isFinite(p) ? acc + p : acc;
+        }, 0);
+        setInPlayAmount(sum);
+      } catch {
+        // Si falla, dejamos 0 (mejor que mostrar un número inventado).
+        setInPlayAmount(0);
+      } finally {
+        if (!cancelled) setInPlayLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   if (!user) return null;
 
   async function goToMercadoPago() {
@@ -141,7 +184,7 @@ export default function WalletPage() {
       <DashboardShell
         brand={
           <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800">
+            <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-2xl bg-zinc-900/40 ring-1 ring-zinc-800">
               <Image
                 src="/logo-prode.png"
                 alt="PRODE"
@@ -152,55 +195,68 @@ export default function WalletPage() {
               />
             </div>
             <div className="leading-tight">
-              <div className="text-base font-semibold tracking-tight">PRODE</div>
-              <div className="text-[11px] text-zinc-400">Agregar saldo</div>
+              <div className="text-lg font-extrabold tracking-tight">PRODE</div>
+              <div className="text-[12px] font-semibold text-zinc-400">Agregar saldo</div>
             </div>
           </div>
         }
         topNav={
-          <div className="flex items-center gap-5 text-[13px]">
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/">
+          <div className="flex items-center gap-6 text-[14px]">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/">
               Inicio
             </Link>
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/#envivo">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/#envivo">
               En Vivo
               <span className="ml-2 rounded-md bg-red-500/20 px-2 py-0.5 text-[10px] font-extrabold text-red-200 ring-1 ring-red-500/25">
                 LIVE
               </span>
             </Link>
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/#proximos">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/#proximos">
               Próximos
             </Link>
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/account">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/account">
               Mis Apuestas
             </Link>
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/#stats">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/#stats">
               Estadísticas
             </Link>
-            <Link className="text-zinc-300 hover:text-zinc-50" href="/#promo">
+            <Link className={("text-zinc-200 hover:text-zinc-50 " + focusRing).trim()} href="/#promo">
               Promociones
             </Link>
           </div>
         }
         topRight={
           <div className="flex items-center gap-2">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 px-3 py-2">
-              <div className="text-[11px] text-zinc-400">Saldo disponible</div>
-              <div className="text-[13px] font-semibold text-lime-300 tabular-nums">
+            <div className="hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 px-4 py-2.5 sm:block">
+              <div className="text-[12px] font-semibold text-zinc-400">Saldo disponible</div>
+              <div className="text-[15px] font-extrabold text-lime-300 tabular-nums">
                 ${formatMoneyARS(user.balance)}
               </div>
             </div>
             <Link
               href="/wallet"
-              className="grid h-10 w-10 place-items-center rounded-2xl bg-lime-500/15 text-lime-300 ring-1 ring-lime-500/25 hover:bg-lime-500/20"
-              title="Cargar saldo"
+              className={
+                (
+                  "inline-flex min-h-[48px] w-12 items-center justify-center gap-2 rounded-2xl bg-lime-500/15 px-0 text-lime-200 ring-1 ring-lime-500/25 hover:bg-lime-500/20 sm:w-auto sm:px-4 " +
+                  focusRing
+                ).trim()
+              }
+              title="Añadir saldo"
+              aria-label="Añadir saldo"
             >
               <PlusIcon />
+              <span className="hidden text-[15px] font-extrabold sm:inline">Añadir saldo</span>
             </Link>
             <Link
               href="/account"
-              className="grid h-10 w-10 place-items-center rounded-2xl border border-zinc-800 bg-zinc-900/40 text-zinc-200 hover:bg-zinc-900"
+              className={
+                (
+                  "grid h-12 w-12 place-items-center rounded-2xl border border-zinc-800 bg-zinc-900/40 text-zinc-200 hover:bg-zinc-900 " +
+                  focusRing
+                ).trim()
+              }
               title="Cuenta"
+              aria-label="Cuenta"
             >
               <UserIcon />
             </Link>
@@ -274,11 +330,11 @@ export default function WalletPage() {
           </div>
         }
         center={
-          <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40">
-            <div className="space-y-6">
+          <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40 p-5 sm:p-6">
+            <div className="space-y-7">
               <div>
-                <h1 className="text-xl font-semibold tracking-tight">Agregar saldo</h1>
-                <p className="mt-1 text-[13px] text-zinc-400">
+                <h1 className="text-2xl font-extrabold tracking-tight">Agregar saldo</h1>
+                <p className="mt-2 text-[14px] leading-relaxed text-zinc-300">
                   Elegí el monto que deseas agregar a tu cuenta
                 </p>
               </div>
@@ -294,7 +350,7 @@ export default function WalletPage() {
                     <div
                       className={
                         (
-                          "grid h-7 w-7 place-items-center rounded-full text-xs font-extrabold ring-1 " +
+                          "grid h-9 w-9 place-items-center rounded-full text-sm font-extrabold ring-1 " +
                           (s.active
                             ? "bg-lime-500/15 text-lime-200 ring-lime-500/30"
                             : "bg-zinc-900/40 text-zinc-300 ring-zinc-800")
@@ -303,7 +359,7 @@ export default function WalletPage() {
                     >
                       {s.n}
                     </div>
-                    <div className="text-[13px] text-zinc-200">{s.label}</div>
+                    <div className="text-[14px] font-semibold text-zinc-200">{s.label}</div>
                     <div className="hidden h-px flex-1 bg-zinc-800 sm:block" />
                   </div>
                 ))}
@@ -311,16 +367,17 @@ export default function WalletPage() {
 
               {/* Step 1 */}
               <div className="space-y-3">
-                <div className="text-sm font-semibold text-zinc-50">1. Seleccioná el monto</div>
+                <div className="text-[15px] font-extrabold text-zinc-50">1. Seleccioná el monto</div>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                   {PRESETS.map((p) => (
                     <button
                       key={p}
                       type="button"
                       onClick={() => setAmount(String(p))}
+                      aria-pressed={selectedPreset === p}
                       className={
                         (
-                          "rounded-2xl border px-3 py-2 text-[13px] font-semibold tabular-nums transition-colors " +
+                          "min-h-[48px] rounded-2xl border px-3 py-3 text-[15px] font-extrabold tabular-nums transition-colors " +
                           (selectedPreset === p
                             ? "border-lime-500/40 bg-lime-500/10 text-lime-200"
                             : "border-zinc-800 bg-zinc-950/50 text-zinc-200 hover:bg-zinc-900")
@@ -333,7 +390,7 @@ export default function WalletPage() {
                 </div>
 
                 <div className="pt-2">
-                  <div className="text-[13px] text-zinc-400">Otro monto</div>
+                  <div className="text-[14px] font-semibold text-zinc-300">Otro monto</div>
                   <div className="mt-2">
                     <label className="block">
                       <input
@@ -341,7 +398,12 @@ export default function WalletPage() {
                         value={amount}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setAmount(e.target.value)}
                         placeholder="Ej: 1500"
-                        className="w-full rounded-2xl border border-lime-500/25 bg-zinc-950/40 px-4 py-3 text-[13px] text-zinc-50 outline-none focus:ring-2 focus:ring-lime-500/20"
+                        className={
+                          (
+                            "min-h-[52px] w-full rounded-2xl border border-lime-500/25 bg-zinc-950/40 px-4 py-3 text-[16px] font-semibold text-zinc-50 outline-none focus:ring-2 focus:ring-lime-500/30 " +
+                            focusRing
+                          ).trim()
+                        }
                       />
                     </label>
                   </div>
@@ -350,53 +412,55 @@ export default function WalletPage() {
 
               {/* Step 2 */}
               <div className="space-y-3">
-                <div className="text-sm font-semibold text-zinc-50">2. Elegí el método de pago</div>
+                <div className="text-[15px] font-extrabold text-zinc-50">2. Elegí el método de pago</div>
 
                 <div className="rounded-3xl border border-lime-500/25 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40 p-4">
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                      <Image
-                        src="/MP_RGB_HANDSHAKE_color_horizontal.svg"
-                        alt="Mercado Pago"
-                        width={160}
-                        height={32}
-                      />
+                      <div className="shrink-0">
+                        <Image
+                          src="/MP_RGB_HANDSHAKE_color_horizontal.svg"
+                          alt="Mercado Pago"
+                          width={160}
+                          height={32}
+                        />
+                      </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <div className="text-[13px] font-semibold text-zinc-50">
+                          <div className="text-[15px] font-extrabold text-zinc-50">
                             Mercado Pago
                           </div>
                           <span className="rounded-full bg-lime-500/15 px-2 py-0.5 text-[10px] font-extrabold text-lime-200 ring-1 ring-lime-500/25">
                             RECOMENDADO
                           </span>
                         </div>
-                        <div className="mt-1 text-[12px] text-zinc-400">
+                        <div className="mt-1 text-[14px] leading-relaxed text-zinc-300">
                           Pagos rápidos, fáciles y 100% seguros.
                         </div>
                       </div>
                     </div>
-                    <div className="grid h-7 w-7 place-items-center rounded-full bg-lime-500/15 text-lime-200 ring-1 ring-lime-500/25">
+                    <div className="grid h-9 w-9 place-items-center rounded-full bg-lime-500/15 text-lime-200 ring-1 ring-lime-500/25">
                       ✓
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/40 p-3 sm:grid-cols-3">
-                    <div className="text-[12px]">
+                    <div className="text-[14px]">
                       <div className="font-semibold text-zinc-200">Acreditación</div>
                       <div className="text-zinc-400">Inmediata</div>
                     </div>
-                    <div className="text-[12px]">
+                    <div className="text-[14px]">
                       <div className="font-semibold text-zinc-200">Comisión</div>
                       <div className="text-zinc-400">Sin comisión</div>
                     </div>
-                    <div className="text-[12px]">
+                    <div className="text-[14px]">
                       <div className="font-semibold text-zinc-200">Seguridad</div>
                       <div className="text-zinc-400">100% protegida</div>
                     </div>
                   </div>
 
                   {error ? (
-                    <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">
+                    <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-[14px] leading-relaxed text-red-200">
                       {error}
                     </div>
                   ) : null}
@@ -405,7 +469,12 @@ export default function WalletPage() {
                     type="button"
                     disabled={numericAmount <= 0 || loading}
                     onClick={goToMercadoPago}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-lime-500/25 px-4 py-3 text-[13px] font-extrabold text-lime-200 ring-1 ring-lime-500/30 hover:bg-lime-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+                    className={
+                      (
+                        "mt-4 inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-lime-500/80 px-4 py-3 text-[16px] font-extrabold text-zinc-950 ring-1 ring-lime-500/30 hover:bg-lime-500 disabled:cursor-not-allowed disabled:opacity-50 " +
+                        focusRing
+                      ).trim()
+                    }
                   >
                     <Image
                       src="/MP_RGB_HANDSHAKE_pluma_horizontal.svg"
@@ -417,12 +486,12 @@ export default function WalletPage() {
                     <ChevronRightIcon className="h-4 w-4" />
                   </button>
 
-                  <div className="mt-3 text-center text-[11px] text-zinc-400">
+                  <div className="mt-3 text-center text-[13px] leading-relaxed text-zinc-300">
                     Serás redirigido a Mercado Pago para completar el pago de forma segura.
                   </div>
 
                   {!mpConfigured ? (
-                    <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
+                    <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-[14px] leading-relaxed text-amber-200">
                       MP no está configurado (NEXT_PUBLIC_MP_MODE=sandbox). Configuralo para probar
                       depósitos.
                     </div>
@@ -430,16 +499,16 @@ export default function WalletPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/30 px-4 py-3 text-[12px] text-zinc-300">
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-950/30 px-4 py-3 text-[14px] leading-relaxed text-zinc-200">
                 Una vez realizado el pago, el saldo se acreditará automáticamente en tu cuenta PRODE.
               </div>
             </div>
           </Card>
         }
         right={
-          <>
+          <div className="space-y-4 pb-6 lg:pb-8">
             <Card className="border-zinc-800 bg-gradient-to-b from-zinc-900/40 to-zinc-950/40 p-5">
-              <div className="text-xs font-semibold tracking-wide text-zinc-200">
+              <div className="text-[13px] font-extrabold tracking-wide text-zinc-200">
                 TU SALDO ACTUAL
               </div>
               <div className="mt-4 flex items-center gap-3">
@@ -447,21 +516,23 @@ export default function WalletPage() {
                   <span className="text-xl">💳</span>
                 </div>
                 <div>
-                  <div className="text-[11px] text-zinc-400">Saldo disponible</div>
-                  <div className="text-2xl font-extrabold tracking-tight text-lime-300 tabular-nums">
+                  <div className="text-[13px] font-semibold text-zinc-300">Saldo disponible</div>
+                  <div className="mt-1 text-[28px] font-extrabold leading-none tracking-tight text-lime-300 tabular-nums">
                     ${formatMoneyARS(user.balance)}
                   </div>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-4 text-[12px]">
+              <div className="mt-5 grid grid-cols-2 gap-4 border-t border-zinc-800 pt-5 text-[14px]">
                 <div>
                   <div className="text-zinc-400">En juego</div>
-                  <div className="mt-1 font-semibold text-zinc-200 tabular-nums">$0,00</div>
+                  <div className="mt-1 font-extrabold text-zinc-100 tabular-nums">
+                    ${inPlayLoaded ? formatMoneyARS(inPlayAmount) : "—"}
+                  </div>
                 </div>
                 <div>
                   <div className="text-zinc-400">Saldo total</div>
-                  <div className="mt-1 font-semibold text-zinc-200 tabular-nums">
-                    ${formatMoneyARS(user.balance)}
+                  <div className="mt-1 font-extrabold text-zinc-100 tabular-nums">
+                    ${inPlayLoaded ? formatMoneyARS(user.balance + inPlayAmount) : formatMoneyARS(user.balance)}
                   </div>
                 </div>
               </div>
@@ -534,7 +605,12 @@ export default function WalletPage() {
               </div>
               <button
                 type="button"
-                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-lime-500/20 px-3 py-2 text-[13px] font-semibold text-lime-200 ring-1 ring-lime-500/25 hover:bg-lime-500/25"
+                className={
+                  (
+                    "mt-4 inline-flex min-h-[48px] w-full items-center justify-center rounded-2xl bg-lime-500/20 px-4 py-3 text-[15px] font-extrabold text-lime-200 ring-1 ring-lime-500/25 hover:bg-lime-500/25 " +
+                    focusRing
+                  ).trim()
+                }
               >
                 Ir a Soporte
               </button>
@@ -542,7 +618,7 @@ export default function WalletPage() {
                 🎧
               </div>
             </Card>
-          </>
+          </div>
         }
       />
     </RequireAuth>
