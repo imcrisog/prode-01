@@ -49,7 +49,7 @@ export default function WalletPage() {
     return Math.max(0, Math.round(n));
   }, [amount]);
 
-  const mpConfigured = useMemo(() => process.env.NEXT_PUBLIC_MP_MODE === "sandbox", []);
+  const mpConfigured = useMemo(() => process.env.NEXT_MP_MODE === "sandbox", []);
 
   useEffect(() => {
     refresh();
@@ -492,7 +492,7 @@ export default function WalletPage() {
 
                   {!mpConfigured ? (
                     <div className="mt-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-[14px] leading-relaxed text-amber-200">
-                      MP no está configurado (NEXT_PUBLIC_MP_MODE=sandbox). Configuralo para probar
+                      MP no está configurado (NEXT_MP_MODE=sandbox). Configuralo para probar
                       depósitos.
                     </div>
                   ) : null}
