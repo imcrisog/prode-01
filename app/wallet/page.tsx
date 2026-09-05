@@ -49,7 +49,7 @@ export default function WalletPage() {
     return Math.max(0, Math.round(n));
   }, [amount]);
 
-  const mpConfigured = useMemo(() => process.env.NEXT_MP_MODE === "sandbox", []);
+  const mpConfigured = useMemo(() => process.env.NEXT_MP_MODE === "production", []);
 
   useEffect(() => {
     refresh();
