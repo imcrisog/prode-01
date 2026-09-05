@@ -87,7 +87,7 @@ export default function BetPage() {
   const remainingMs = useMemo(() => Math.max(0, match.endsAt - now), [match, now]);
   const canBet = remainingMs > 0;
 
-  // Odds hardcodeadas solo para UI demo (no feed real)
+  // Odds hardcodeadas solo para UI demo
   const odds = useMemo(
     () => ({
       "River Plate": 1.6,
